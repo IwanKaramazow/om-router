@@ -13,18 +13,32 @@
 (defn handleEnter [state replace]
   (replace state "/not-logged-in"))
 
+(defn testLeave [state reconciler]
+  (println "test leave first")
+  true)
+
+(defn testLeave2 [state reconciler]
+  (println "I am awesome")
+  true)
+
+
+
 (def routes
   {"/" {:handlers [:app :fun]
         :index :home ;; index-route for route "/"
         :children {"/" {:handler :sub
+                        
                         :children {;; "/ok" {:handler :fuck}
                                    "hello(/:name)" {:handler :hello}
                                    "about" {:handler :about
-                                            :onEnter handleEnter
-                                            :children {"swag" {:handler :swag}
-                                                       }}
+                                            :onLeave testLeave2
+                                            :children {"swag" {:handler :swag
+                                                               :onLeave testLeave}
+                                                       
+                                                      }
+                                            }
                                    "contact" {:handler :contact}
-                                   "test/:id/test/:swag" {:handler :test}
+                                   "test/:id/test/:swag" {:handler :test }
                                    "files/**/*.jpg" {:handler :jpg}
                                    "redirect" {:redirect "/lala"}
                                    "escape.!{}+" {:handler :escape}
@@ -111,12 +125,12 @@
          [:navbar/items-by-id id])
   static om/IQuery
   (query [_]
-         [:id :name :href])
+         [:id :name :path])
   Object
   (render [this]        
-          (let [{:keys [name href]} (om/props this)]
+          (let [{:keys [name path]} (om/props this)]
             (dom/li nil
-                    (router/link this {:className "nav-item" :href href} name)))))
+                    (router/link this {:className "nav-item" :path path} name)))))
 
 (def menu-item (om/factory MenuItem {:keyfn #(:id %)}))
 
@@ -125,19 +139,19 @@
           (map menu-item items)))
 
 
-(def nav {:navbar/items [{:id 0 :name "hello" :href "/hello"}
-                         {:id 11 :name "hello maxim" :href "/hello/maxim"}
-                         {:id 13 :name "ok" :href "/ok"}
-                         {:id 1 :name "home" :href "/"}
-                         ;; {:id 2 :name "union" :href "/union"}
-                         {:id 3 :name "about" :href "/about"}
-                         {:id 4 :name "not-found" :href "/lala"}
-                         {:id 5 :name "swag" :href "/about/swag/"}
-                         {:id 6 :name "param-heaven" :href "/test/123/test/456"}
-                         {:id 7 :name "strange paths" :href "/files/path/to/swag.jpg"}
-                         {:id 8 :name "whitespace" :href "/files/pat h/to/swag.jpg"}
-                         {:id 9 :name "redirect" :href "/redirect"}
-                         {:id 20 :name "escape.!" :href "/escape.!{}+"}]})
+(def nav {:navbar/items [{:id 0 :name "hello" :path "/hello"}
+                         {:id 11 :name "hello maxim" :path "/hello/maxim"}
+                         {:id 13 :name "ok" :path "/ok"}
+                         {:id 1 :name "home" :path "/"}
+                         ;; {:id 2 :name "union" :path "/union"}
+                         {:id 3 :name "about" :path "/about"}
+                         {:id 4 :name "not-found" :path "/lala"}
+                         {:id 5 :name "swag" :path "/about/swag/"}
+                         {:id 6 :name "param-heaven" :path "/test/123/test/456"}
+                         {:id 7 :name "strange paths" :path "/files/path/to/swag.jpg"}
+                         {:id 8 :name "whitespace" :path "/files/pat h/to/swag.jpg"}
+                         {:id 9 :name "redirect" :path "/redirect"}
+                         {:id 20 :name "escape.!" :path "/escape.!{}+"}]})
 
 (defui App
   static om/IQuery

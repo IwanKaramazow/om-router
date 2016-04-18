@@ -5,6 +5,7 @@
             [clojure.string :as s])
   (:import [goog Uri]))
 
+
 (defn get-url
   [] (-> js/window .-location .-href))
 
@@ -20,10 +21,7 @@
             (for [ k (.getKeys query-data)]
               [k (.get query-data k)])))))
 
-(defn ensure-slash [path]
-  (if (s/starts-with? path "/")
-    path
-    (str "/" path)))
+
 
 
 
@@ -47,7 +45,12 @@
             (conj matched-route index-route)) ;;[matched-route index-route]
           matched-route))))
 
-(defn remove-slash [string]
+(defn- ensure-slash [path]
+  (if (s/starts-with? path "/")
+    path
+    (str "/" path)))
+
+(defn- remove-slash [string]
   (if (and  (s/starts-with? string "/") (not= string "/"))
     (s/replace-first string "/" "")
     string))
@@ -65,8 +68,6 @@
               (= string "*") "(.*?)"
               :else string))
           (escape-regex [string]
-            ;;/[.*+?^${}()|[\]\\]/g
-            ;;[.|\\]
             (s/replace string #"[.|\\]" "\\$&"))]
     (let [matcher #":([a-zA-Z_$][a-zA-Z0-9_$]*)|\*\*|\*|\(|\)"
           matches (re-seq matcher pattern)]
@@ -88,20 +89,14 @@
             (if param
               (let [res (-> res
                             (update-in [:params] #(conj % (keyword param)))
-                            (assoc-in [:regex] (str regx (compile-regex match)))
-                            ;; (assoc-in [:tokens] (conj tokens match))
-                            )]
+                            (assoc-in [:regex] (str regx (compile-regex match))))]
                 (recur stop (next matches) res ))
               (let [res (-> res
-                            (assoc-in [:regex] (str regx (compile-regex match)))
-                            ;; (update-in [:tokens] #(conj % match))
-                            )]
+                            (assoc-in [:regex] (str regx (compile-regex match))))]
                 (recur stop (next matches) res))))
           (let [remaining (subs pattern index (count pattern))
                 res (-> res
-                        (assoc-in [:regex] (str (:regex res) (escape-regex remaining)))
-                        ;; (update-in  [:tokens] #(conj % remaining ))
-                        )]
+                        (assoc-in [:regex] (str (:regex res) (escape-regex remaining))))]
             res))))))
 
 (def pattern-cache (atom {}))
@@ -113,7 +108,7 @@
       (swap! pattern-cache assoc pattern compile)
       compile)))
 
-(defn extract-params [route-path path]
+(defn- extract-params [route-path path]
   (let [pattern (compile-pattern route-path)
         params (:params pattern)
         values (drop 1
@@ -135,9 +130,7 @@
            res (merge route-data {:route/params {} :route/components []})]
       (let [possible-paths  (keys routes)
             other (filter (fn [pos]
-                            (re-find (re-pattern (:regex (compile-pattern pos)))  (remove-slash path))) possible-paths)
-            _ (println "other" other)
-            _ (println "possible-paths" possible-paths)]
+                            (re-find (re-pattern (:regex (compile-pattern pos)))  (remove-slash path))) possible-paths)]
         (if-let [match (first (filter
                                (fn [pos]
                                  (re-find (re-pattern (:regex (compile-pattern pos))) path))
@@ -159,6 +152,7 @@
                   (recur (ensure-slash rest) (:children route) res')
                   res'))))
           res)))))
+
 
 
 (defn dispatch [handler] handler)
@@ -251,34 +245,48 @@
 
 
 
-(defn link [component {:keys [className style href]} name]
+(defn link [component {:keys [className style path]} name]
   (dom/a #js {:className className
               :style style
-              :href href
+              :href path
               :onClick #(do
                           (.preventDefault %)
-                          (push! component href))} name))
+                          (push! component path))} name))
 
-(defn- run-hooks [state prev curr]
+(defn- run-hooks [state reconciler old-state prev new]
   (letfn [(replace [state url]
             (let [path (url->path url)
                   query-params (url->query-params url)]
               (-> state
                   (assoc-in [:router] (merge (match (:routes state) url)
-                                            {:route/action :push})))))
-          (compute-hooks [prev curr]
+                                             {:route/action :push})))))
+          (compute-enter-hooks [prev new]
             (reduce (fn [hooks c]
                       (when (not (some #{c} prev))
-                        (conj hooks c))) [] curr))]
-    (let [xf (comp
+                        (conj hooks c))) [] new))
+          (compute-leave-hooks [prev new]
+            (reduce (fn [hooks c]
+                      (when (not (some #{c} new))
+                        (conj hooks c))) [] prev))]
+    (let [prev-handlers (:route/components prev)
+          new-handlers (:route/components new)
+          enter-xf (comp
               (map #(:onEnter %))
               (filter #(not (nil? %))))
-          enter-hooks (transduce xf conj [] (compute-hooks prev curr))]
-      (if-not (empty? enter-hooks)
-       (reduce (fn [state hook]
-                 (hook state replace)) state enter-hooks)
-       state))))
-
+          leave-xf (comp (map #(:onLeave %)) (filter #(not (nil? %))))
+          enter-hooks (transduce enter-xf conj []
+                                 (compute-enter-hooks prev-handlers new-handlers))
+          leave-hooks (transduce leave-xf conj []
+                                 (compute-leave-hooks prev-handlers new-handlers))]
+      (let [transition (reduce (fn [prev curr]
+                                    (and prev (curr state reconciler)))
+                               true leave-hooks)]
+        (if (true? transition)
+          (if-not (empty? enter-hooks)
+            (reduce (fn [state hook]
+                      (hook state replace)) state enter-hooks)
+            state)
+          old-state)))))
 
 
 ;; parser
@@ -290,11 +298,14 @@
 (defn mutate
   [{:keys [state reconciler component target] :as env} key {:keys [url action]}]
   {:action (fn []
-             (let [routes (match (:routes @state) url)
-                   prev (get-in @state [:router :route/components])]
+             (let [old-state @state
+                   new (match (:routes @state) url)
+                  ;; prev (get-in @state [:router :route/components])
+                   prev (get-in @state [:router])]
                (swap! state #(-> %
                                  (assoc-in [:router] (merge
-                                                     routes
+                                                     new
                                                      {:route/action action}))
-                                 (run-hooks prev (:route/components routes))))))})
+                                 (run-hooks reconciler old-state prev new)))))})
+
 
