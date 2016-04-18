@@ -14,10 +14,11 @@
   (replace state "/not-logged-in"))
 
 (def routes
-  {"/" {:handler :app
+  {"/" {:handlers [:app :fun]
         :index :home ;; index-route for route "/"
         :children {"/" {:handler :sub
-                        :children {"union" {:handler :union}
+                        :children {;; "/ok" {:handler :fuck}
+                                   "hello(/:name)" {:handler :hello}
                                    "about" {:handler :about
                                             :onEnter handleEnter
                                             :children {"swag" {:handler :swag}
@@ -25,11 +26,17 @@
                                    "contact" {:handler :contact}
                                    "test/:id/test/:swag" {:handler :test}
                                    "files/**/*.jpg" {:handler :jpg}
+                                   "redirect" {:redirect "/lala"}
+                                   "escape.!{}+" {:handler :escape}
                                     "*" {:handler :not-found}
-                                   }}}}})
+                                   }}}}
+   })
+
 (def app-state {:app/title "App!"
                 :home/body "This is the body of the home page queried w/ [:home/body]"
                 :routes routes})
+
+
 
 
 
@@ -52,7 +59,7 @@
 
 (defmethod read :default
   [{:keys [parser query state] :as env} key params]
-  (if (some #{key} [:app :home :test :union])
+  (if (some #{key} [:app :home :test :hello])
     ;; recursively call the parser,
     ;; i.e. we ignore :app || :home || :test || :union
     ;; and walk a little deeper in the query
@@ -118,35 +125,52 @@
           (map menu-item items)))
 
 
-(def nav {:navbar/items [{:id 1 :name "home" :href "/"}
-            ;; {:id 2 :name "union" :href "/union"}
-            {:id 3 :name "about" :href "/about"}
-            {:id 4 :name "not-found" :href "/lala"}
-            {:id 5 :name "swag" :href "/about/swag/"}
-            {:id 6 :name "param-heaven" :href "/test/123/test/456"}
-            {:id 7 :name "strange paths" :href "/files/path/to/swag.jpg"}
-            {:id 8 :name "whitespace" :href "/files/pat h/to/swag.jpg"}]})
+(def nav {:navbar/items [{:id 0 :name "hello" :href "/hello"}
+                         {:id 11 :name "hello maxim" :href "/hello/maxim"}
+                         {:id 13 :name "ok" :href "/ok"}
+                         {:id 1 :name "home" :href "/"}
+                         ;; {:id 2 :name "union" :href "/union"}
+                         {:id 3 :name "about" :href "/about"}
+                         {:id 4 :name "not-found" :href "/lala"}
+                         {:id 5 :name "swag" :href "/about/swag/"}
+                         {:id 6 :name "param-heaven" :href "/test/123/test/456"}
+                         {:id 7 :name "strange paths" :href "/files/path/to/swag.jpg"}
+                         {:id 8 :name "whitespace" :href "/files/pat h/to/swag.jpg"}
+                         {:id 9 :name "redirect" :href "/redirect"}
+                         {:id 20 :name "escape.!" :href "/escape.!{}+"}]})
 
 (defui App
   static om/IQuery
   (query [this]
-         [{:router [:route/path]} :app/title {:navbar/items (om/get-query MenuItem)}])
+         [{:router [:route/pathname]} :app/title {:navbar/items (om/get-query MenuItem)}])
   Object
   (componentDidMount [this]
-                     (println "component did mount")
                      (om/transact! this `[(load/it {:data ~nav})]))
   (render [this]
           (let [{:keys [app/title navbar/items]
-                 {:keys [route/path]} :router} (:app (om/props this))]
+                 {:keys [route/pathname]} :router} (:app (om/props this))]
             (dom/div nil
                      (dom/h1 nil title)
-                     (dom/div nil (str "path => " path))
+                     (dom/div nil (str "path => " pathname))
                      (navbar items)
                      (om/children this)))))
 
 
 (defmethod find-component :app [_] App)
 
+(defui Hello
+  static om/IQuery
+  (query [this]
+         [{:router [:route/params]}])
+  Object
+  (render [this]
+          (let [{{:keys [route/params]} :router} (:hello (om/props this))]
+            (dom/div nil
+                     (dom/h1 nil "Hello")
+                     (dom/p nil "params:" (:name params))
+                     ))))
+
+(defmethod find-component :hello [_] Hello)
 
 (defui Home
   static om/IQuery
@@ -195,6 +219,25 @@
 
 (defmethod find-component :jpg [_] jpg)
 
+(defui Fun
+  Object
+  (render [this]
+          (dom/div nil
+                   (dom/h1 nil "fun part")
+                   (om/children this))))
+
+(defmethod find-component :fun [_] Fun)
+
+(defn fuck []
+  (dom/h1 nil "........"))
+
+(defn escape []
+  (dom/h1 nil  "escape.*!"))
+
+(defmethod find-component :escape [_] escape)
+
+(defmethod find-component :fuck [_] fuck)
+
 (defonce reconciler
   (om/reconciler
    {:state app-state
@@ -212,3 +255,5 @@
 (om/add-root!
  reconciler (router/Router {:dispatch find-component})
  (gdom/getElement "app"))
+
+

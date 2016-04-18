@@ -25,19 +25,27 @@
     path
     (str "/" path)))
 
-(defn resolve-segment [route rest]
+
+
+(defn- resolve-segment [route rest]
   (letfn [(compute-index [route]
             (let [index (:index route)]
               (if (keyword? index)
                 {:handler index}
-                index)))]
-      (let [matched-route (select-keys route [:handler :onLeave :onEnter])]
-        (if (empty? rest)
-          (if (contains? route :index)
-            (let [index-route (compute-index route)]
-              [matched-route index-route])
-            [matched-route])
-          [matched-route]))))
+                index)))
+          (xf-handlers [route]
+            (let [handlers (:handlers route)
+                  root' (first handlers)
+                  hooks (dissoc route :handlers)]
+              (-> (reduce (fn [prev curr]
+                            (conj prev {:handler curr})) [] handlers)
+                  (update 0 #(merge % hooks)))))]
+    (let [matched-route (select-keys route [:handler :handlers :onLeave :onEnter :redirect])
+          matched-route (xf-handlers matched-route)]
+        (if  (and (empty? rest) (contains? route :index))
+          (let [index-route (compute-index route)]
+            (conj matched-route index-route)) ;;[matched-route index-route]
+          matched-route))))
 
 (defn remove-slash [string]
   (if (and  (s/starts-with? string "/") (not= string "/"))
@@ -51,41 +59,49 @@
   (letfn [(compile-regex [string]
             (cond
               (s/includes? string ":") "([^/]+)"
+              (= string "(") "(?:"
+              (= string ")") ")?"
               (= string "**") "(.*)"
               (= string "*") "(.*?)"
               :else string))
           (escape-regex [string]
+            ;;/[.*+?^${}()|[\]\\]/g
+            ;;[.|\\]
             (s/replace string #"[.|\\]" "\\$&"))]
-    (let [matcher #":([a-zA-Z_$][a-zA-Z0-9_$]*)|\*\*|\*|\(|\)/g"
+    (let [matcher #":([a-zA-Z_$][a-zA-Z0-9_$]*)|\*\*|\*|\(|\)"
           matches (re-seq matcher pattern)]
       (loop [index 0
              matches matches
-             res {:params [] :regex "" :tokens []}]
+             res {:params [] :regex ""  ;;:tokens []
+                  }]
         (if-not (empty? matches)
-          (let [{:keys [params regex tokens]} res
+          (let [{:keys [params regex]} res
                 possible (first matches)
                 param (second possible)
                 match (first possible)
                 start (s/index-of pattern match index)
                 stop (+ start (count match))
                 plain (subs pattern index start)
-                tokens (conj tokens plain)
-                res (assoc-in res [:tokens] tokens)
+                ;; tokens (conj tokens plain)
+                ;; res (assoc-in res [:tokens] tokens)
                 regx (str regex (escape-regex plain))]
             (if param
               (let [res (-> res
                             (update-in [:params] #(conj % (keyword param)))
                             (assoc-in [:regex] (str regx (compile-regex match)))
-                            (assoc-in [:tokens] (conj tokens match)))]
+                            ;; (assoc-in [:tokens] (conj tokens match))
+                            )]
                 (recur stop (next matches) res ))
               (let [res (-> res
                             (assoc-in [:regex] (str regx (compile-regex match)))
-                            (update-in [:tokens] #(conj % match)))]
+                            ;; (update-in [:tokens] #(conj % match))
+                            )]
                 (recur stop (next matches) res))))
           (let [remaining (subs pattern index (count pattern))
                 res (-> res
                         (assoc-in [:regex] (str (:regex res) (escape-regex remaining)))
-                        (update-in  [:tokens] #(conj % remaining )))]
+                        ;; (update-in  [:tokens] #(conj % remaining ))
+                        )]
             res))))))
 
 (def pattern-cache (atom {}))
@@ -112,13 +128,16 @@
 (defn match [routes url]
   (let [path (url->path url)
         query (url->query-params url)
-        route-data {:route/path path :route/query-params query :route/url url}]
+        route-data {:route/pathname path :route/query-params query :route/url url}
+        all-routes routes]
     (loop [path path
            routes routes
            res (merge route-data {:route/params {} :route/components []})]
       (let [possible-paths  (keys routes)
             other (filter (fn [pos]
-                            (re-find (re-pattern (:regex (compile-pattern pos)))  (remove-slash path))) possible-paths)]
+                            (re-find (re-pattern (:regex (compile-pattern pos)))  (remove-slash path))) possible-paths)
+            _ (println "other" other)
+            _ (println "possible-paths" possible-paths)]
         (if-let [match (first (filter
                                (fn [pos]
                                  (re-find (re-pattern (:regex (compile-pattern pos))) path))
@@ -126,31 +145,41 @@
           (let [rest (s/replace-first path (re-pattern (:regex (compile-pattern match))) "")
                 route (get routes match)
                 resolved-route (resolve-segment route rest)
+                redirect (first (filter #(:redirect %) resolved-route))
                 res (update-in res [:route/params] merge (extract-params match path))]
-            (if-not (empty? rest)
-              (if-not (nil? (:children route))
-                (recur (ensure-slash rest)
-                       (:children route)
-                       (update-in res [:route/components] #(into [] (concat % resolved-route))))
-                (update-in res [:route/components] #(into [] (concat % resolved-route))))
-              (update-in res [:route/components] #(into [] (concat % resolved-route)))
-              ))
+            (if redirect
+              ;; todo duplicated code...
+              (let [url (:redirect redirect)
+                    path (url->path url)
+                    query (url->query-params url)
+                    route-data {:route/pathname path :route/query-params query :route/url url}]
+                (recur path all-routes (merge route-data {:route/params {} :route/components []})))
+              (let [res' (update-in res [:route/components] #(into [] (concat % resolved-route)))]
+                (if-not (and (empty? rest) (nil? (:children route)))
+                  (recur (ensure-slash rest) (:children route) res')
+                  res'))))
           res)))))
+
 
 (defn dispatch [handler] handler)
 
 
 (def router-query
   [{:router [:route/url
-            :route/path
+            :route/pathname
             :route/query-params
             :route/components
-            :route/action]}])
+             :route/action]}])
 
-(defn Router [{:keys [dispatch]}]
-  (letfn [(aggregate-query [props]
+
+
+(defn Router [{:keys [dispatch componentDidMount]}]
+  (letfn [(aggregate-query [props] ;; todo extract (i.e. code splitting) ?
             (let [components (get-in props [:router :route/components])
-                  components (into [] (map #(conj [(:handler %)] (dispatch (:handler %))) components))
+                  components (into []
+                                   (map
+                                    #(conj [(:handler %)] (dispatch (:handler %)))
+                                    components))
                   sub-query (reduce #(if-let [query (om/get-query (second %2))]
                                        (if-not (empty? query)
                                          (conj % {(first %2) query})
@@ -176,6 +205,8 @@
                          (let [newRootQuery (aggregate-query (om/props this))]
                            (when (not= (om/get-query this) newRootQuery)
                              (om/set-query! this {:query newRootQuery}))))
+     (componentDidMount [this]
+                        (when componentDidMount (componentDidMount this)))
      (componentWillReceiveProps [this next-props]
                                 (let [oldRootQuery (aggregate-query (om/props this))
                                       newRootQuery (aggregate-query next-props)]
@@ -190,13 +221,13 @@
                                 (om/set-query! this {:query router-query})
                                 (om/set-query! this {:query newRootQuery})))))
      (componentDidUpdate [this prev-props prev-state]
-                         (let [{{:keys [:route/path :route/action]} :router} (om/props this)
+                         (let [{{:keys [:route/pathname :route/action]} :router} (om/props this)
                                browser (str js/window.location.pathname js/window.location.search)
                                history (:browser-history (om/get-state this))]
-                           (when (not= path (.getToken history))
+                           (when (not= pathname (.getToken history))
                              (case action
-                               :push (hist/push! history path)
-                               :replace (hist/replace! history path)))))
+                               :push (hist/push! history pathname)
+                               :replace (hist/replace! history pathname)))))
      (render [this]
              (let [props (om/props this)
                    handlers (get-in props [:router :route/components])
@@ -204,12 +235,19 @@
                (when-not (empty? components) 
                  (render* components props)))))))
 
+(defn get-push-query [href]
+  `[(router/transact {:action :push :url ~href}) :router])
+
+(defn get-replace-query [href]
+  `[(router/transact {:action :replace :url ~href}) :router])
 
 (defn push! [c href]
-  (om/transact! c `[(router/transact {:action :push :url ~href}) :router]))
+  (om/transact! c (get-push-query href)))
+
 
 (defn replace! [c href]
-  (om/transact! c `[(router/transact {:action :replace :url ~href}) :router]))
+  (om/transact! c (get-replace-query href)))
+
 
 
 
@@ -221,7 +259,7 @@
                           (.preventDefault %)
                           (push! component href))} name))
 
-(defn run-hooks [state prev curr]
+(defn- run-hooks [state prev curr]
   (letfn [(replace [state url]
             (let [path (url->path url)
                   query-params (url->query-params url)]
@@ -240,6 +278,8 @@
        (reduce (fn [state hook]
                  (hook state replace)) state enter-hooks)
        state))))
+
+
 
 ;; parser
 (defn read
