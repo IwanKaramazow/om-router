@@ -1,5 +1,14 @@
 # Om-Router
 
+ 
+
+> *“Avoidance of boredom is the only worthy mode of action.
+Life otherwise is not worth living.”*
+> *&mdash; Nassim Nicholas Taleb*
+
+
+Om-Router is a client-side router written in ClojureScript for Om.Next.
+
 
 ### Usage
 
@@ -7,6 +16,7 @@
 ;; 0. Don't forget to require the router...
 (ns om-router.example
   (:require [om-router.core :as router]))
+
 ;; 1. define some routes
 (def routes
   {"/" {:handler :app
@@ -17,7 +27,7 @@
                    "*" {:handler :not-found}}}})
 
 ;; 2. add the routes to your initial app-state
-(def app-state {:routes routes 
+(def app-state {:routes routes ;; under `:routes` important ;) 
                 :something/else "rest of your app"})
 
 ;; 3. Hook up the router to your parser
@@ -46,20 +56,26 @@
           ]))
 (render [this]
         (let [{{:keys [route/pathname]} :router} (:app (om/props this))]
+          ;; not everything will be available under `:app` in (om/props ths)
+          ;; why? see below in 6., the router will dispatch on :app to find App
+          ;; it will aggregate the query found here under :app (e.g. a join)
           (dom/div nil
                    (dom/h1 nil "App")
                    (dom/div nil "pathname: " pathname))))
-;; rest of your components
+;; etc. rest of your components
 
 ;; 6. This is important, the keys you defined under `:handler` in the route config
-;; are necessary to help find the components. When matching the routes, the router will dispatch for example on :app to find component `App` as defined below.
+;; are necessary to help find the components.
+;; When matching the routes, the router will dispatch for example on :app to find component `App` as defined below.
 (defmethod find-component :app [_] App)
 
 ;; define multimethods for the rest of your components, e.g.
 (defn not-found []
-  (dom/h1 nil "This is the not-found page"))
+  (dom/h1 nil "This is the not-found page")) ;; -> functions are valid
 
+;; don't forget the corresponding dispatch multimethod
 (defmethod find-component :not-found [_] not-found)
+
 
 ;;7. Define your reconciler
 (defonce reconciler
@@ -71,5 +87,7 @@
 (om/add-root!
  reconciler (router/Router {:dispatch find-component})
  (gdom/getElement "app"))
+
+;;9. 
 
 ```

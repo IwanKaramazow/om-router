@@ -28,8 +28,7 @@
         :index :home ;; index-route for route "/"
         :children {"/" {:handler :sub
                         
-                        :children {;; "/ok" {:handler :fuck}
-                                   "hello(/:name)" {:handler :hello}
+                        :children {"hello(/:name)" {:handler :hello}
                                    "about" {:handler :about
                                             :onLeave testLeave2
                                             :children {"swag" {:handler :swag
@@ -242,15 +241,14 @@
 
 (defmethod find-component :fun [_] Fun)
 
-(defn fuck []
-  (dom/h1 nil "........"))
+
 
 (defn escape []
   (dom/h1 nil  "escape.*!"))
 
 (defmethod find-component :escape [_] escape)
 
-(defmethod find-component :fuck [_] fuck)
+
 
 (defonce reconciler
   (om/reconciler
