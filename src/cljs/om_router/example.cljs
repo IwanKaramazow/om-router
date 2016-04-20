@@ -11,6 +11,7 @@
 
 
 (defn handleEnter [state replace]
+  
   (replace state "/not-logged-in"))
 
 (defn testLeave [state reconciler]
@@ -18,7 +19,7 @@
   true)
 
 (defn testLeave2 [state reconciler]
-  (println "I am awesome")
+  (println "test leave second")
   true)
 
 
@@ -87,7 +88,7 @@
   [{:keys [state component]} key {:keys [data]}]
   {:action #(swap! state (fn [st]
                            (merge st
-                                       (om/tree->db component data true))))})
+                                  (om/tree->db component data true))))})
 
 ;; hoop up the router's mutation
 (defmethod mutate 'router/transact

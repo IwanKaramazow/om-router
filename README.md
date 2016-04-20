@@ -23,6 +23,7 @@ of the Graph and Om Next.
 ### RoadMap
 
 * [x] initial implementation
+* [ ] code splitting
 * [ ] docs
 * [ ] examples
 * [ ] tests
@@ -31,6 +32,8 @@ of the Graph and Om Next.
 
 
 ### Usage
+
+```[om-router "0.1.0-SNAPSHOT"]```
 
 ```clojure
 ;; 0. Don't forget to require the router...
