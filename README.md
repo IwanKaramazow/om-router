@@ -81,7 +81,7 @@ of the Graph and Om Next.
  Object
  (render [this]
         (let [{{:keys [route/pathname]} :router} (:app (om/props this))]
-          ;; not everything will be available under `:app` in (om/props ths)
+          ;; everything will be available under `:app` in (om/props this)
           ;; why? see below in 6., the router will dispatch on :app to find App
           ;; it will aggregate the query found here under :app (e.g. a join)
           (dom/div nil
