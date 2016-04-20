@@ -7,14 +7,18 @@
 
 
 (defn get-url
-  [] (-> js/window .-location .-href))
+  "Get the url from the browser"
+  []
+  (-> js/window .-location .-href))
 
 
 (defn url->path
+  "Extract the pathname from a url"
   [url]
   (.getPath (goog.Uri. url)))
 
-(defn url->query-params  
+(defn url->query-params
+  "Extract the query-parameters from a url"
   [url]
   (let [query-data (.getQueryData (goog.Uri. url))]
      (clojure.walk/keywordize-keys (into {}
@@ -120,7 +124,9 @@
     (zipmap params values)))
 
 
-(defn match [routes url]
+(defn match
+  "Given a route-config and a url, get the relevant components handlers & router lifecycle hooks."
+  [routes url]
   (let [path (url->path url)
         query (url->query-params url)
         route-data {:route/pathname path :route/query-params query :route/url url}
@@ -155,7 +161,10 @@
 
 
 
-(defn dispatch [handler] handler)
+(defn dispatch
+  "Helper function to help the router's dispatch find components based on a key."
+  [handler]
+  handler)
 
 
 (def router-query
@@ -168,6 +177,9 @@
 
 
 (defn Router [{:keys [dispatch componentDidMount]}]
+  "The Router itself! Just a function which generates a vanilla Om Next component.
+    Requires a :dispatch (multimethod) which helps the router to find components.
+   Optional: componentDidMount, a function which receives the Router (a.k.a. a `defui`) as argument, usefull for transacting some "
   (letfn [(aggregate-query [props] ;; todo extract (i.e. code splitting) ?
             (let [components (get-in props [:router :route/components])
                   components (into []
@@ -229,29 +241,43 @@
                (when-not (empty? components) 
                  (render* components props)))))))
 
-(defn get-push-query [href]
-  `[(router/transact {:action :push :url ~href}) :router])
 
-(defn get-replace-query [href]
-  `[(router/transact {:action :replace :url ~href}) :router])
+(defn get-push-query
+  "Given a path, compute the query which results in a `:push` mutation on the router & history. "
+  [path]  
+  `[(router/transact {:action :push :url ~path}) :router])
 
-(defn push! [c href]
-  (om/transact! c (get-push-query href)))
+(defn get-replace-query
+  "Given a path, compute the query which results in a `:replace` mutation on the router"
+  [path]
+  `[(router/transact {:action :replace :url ~path}) :router])
+
+(defn push!
+  "Given a component & path, perform a push mutation on the router."
+  [c path]
+  (om/transact! c (get-push-query path)))
 
 
-(defn replace! [c href]
-  (om/transact! c (get-replace-query href)))
+(defn replace!
+    "Given a component & path, perform a replace mutation on the router."
+  [c path]
+  (om/transact! c (get-replace-query path)))
 
 
 
 
-(defn link [component {:keys [className style path]} name]
+(defn link
+  "Link function which results in a classic <a></a> hooked up to the router.
+   Requires a component to perform mutations."
+  [component {:keys [className style path]} name]
   (dom/a #js {:className className
               :style style
               :href path
               :onClick #(do
                           (.preventDefault %)
                           (push! component path))} name))
+
+
 
 (defn- run-hooks [state reconciler old-state prev new]
   (letfn [(replace [state url]
@@ -290,6 +316,7 @@
 
 
 ;; parser
+
 (defn read
   [{:keys [state query]} key _]
   (let [st @state]
@@ -300,7 +327,6 @@
   {:action (fn []
              (let [old-state @state
                    new (match (:routes @state) url)
-                  ;; prev (get-in @state [:router :route/components])
                    prev (get-in @state [:router])]
                (swap! state #(-> %
                                  (assoc-in [:router] (merge

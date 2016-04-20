@@ -266,8 +266,12 @@
   (render [this]
           (dom/h1 nil "test")))
 
+(defn routerDidMount [router]
+  (om/transact! router '[(launch-fireworks!)]))
+
 (om/add-root!
- reconciler (router/Router {:dispatch find-component})
+ reconciler (router/Router {:dispatch find-component
+                            :componentDidMount routerDidMount})
  (gdom/getElement "app"))
 
 
