@@ -25,6 +25,8 @@ of the Graph and Om Next.
 * [x] initial implementation
 * [ ] docs
 * [ ] examples
+* [ ] tests
+* [ ] benchmarking & performance
 * [ ] server side rendering (Cellophane?)
 
 
@@ -102,9 +104,14 @@ of the Graph and Om Next.
    {:state app-state
     :parser (om/parser {:read read :mutate mutate})}))
 
+(defn routerDidMount [router]
+  (om/transact! router '[(launch-fireworks!)]))
+
 ;;8. jack a Router component with a dispatch multimethod into the reconciler & fire the thing up
 (om/add-root!
- reconciler (router/Router {:dispatch find-component})
+ reconciler (router/Router {:dispatch find-component ;;required
+                            :componentDidMount routerDidMount ;;optional
+                            })
  (gdom/getElement "app"))
 
 ;;9. 
@@ -129,8 +136,6 @@ Example:
 ;; this will produce the following root query if the handler defined in your routes
 ;; for component App is `:app`
 
-```clojure
-
 [{:router [ router specific stuff]} {:app [:app/title {:navbar/items (om/get-query NavBar)}]}]
 
 ;; You have to call your parser recursively on :app...
@@ -138,7 +143,7 @@ Example:
   [{:keys [parser query state] :as env} key params]
   (if (some #{key} [:app :home :about :not-found]) ;; -> usually all my handlers go in here
     ;; recursively call the parser,
-    ;; i.e. we ignore :app || :home || :test || :union
+    ;; i.e. we ignore :app || :home || :about || :not-found
     ;; and walk a little deeper in the query
     {:value (parser env query)}
     {:value (get @state key)}))
@@ -210,6 +215,8 @@ Example:
 
 
 ```clojure
+;; there is a link function available which produces <a></a>'s
+
 (defui Some-Component
   Object
   (render [this]
