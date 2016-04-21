@@ -136,10 +136,12 @@ Example:
   static om/IQuery
   [:app/title {:navbar/items (om/get-query NavBar)}])
 
+(defmethod find-component :app [_] App)
+
 ;; this will produce the following root query if the handler defined in your routes
 ;; for component App is `:app`
 
-[{:router [ router specific stuff]} {:app [:app/title {:navbar/items (om/get-query NavBar)}]}]
+[{:router [...router-specific-stuff]} {:app [:app/title {:navbar/items (om/get-query NavBar)}]}]
 
 ;; You have to call your parser recursively on :app...
 (defmethod read :default
