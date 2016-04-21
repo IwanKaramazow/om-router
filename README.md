@@ -233,7 +233,7 @@ Example:
                                          :href "/some-path"}
                                          "this is a link"))))
 
-;; how do I normalize my initial app-state when the Router made a new Component?
+;; how do I normalize my initial app-state when the Router mounted a new component?
 
 (defmethod mutate 'load/it
   [{:keys [state component]} key {:keys [data]}]
