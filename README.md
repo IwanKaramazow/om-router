@@ -118,7 +118,6 @@ of the Graph and Om Next.
                             })
  (gdom/getElement "app"))
 
-;;9. 
 
 ```
 
@@ -163,13 +162,14 @@ Example:
            :route/query-params
            :route/params ;; think /users/:id -> :id 123
            :route/components
-           :route/action]}]```
+           :route/action]}]
+           
+```
 
 
 ### Lifecycle hooks
 
 ```clojure
-
 ;; :onEnter
 ;; onEnter will receive the whole state and a replace function
 ;; return a state
@@ -228,9 +228,10 @@ Example:
                    (om-router.core/link this
                                         {:className "class"
                                          :style {...}
-                                         :href "/some-path"}))))
+                                         :href "/some-path"}
+                                         "this is a link"))))
 
-;; how do I normalize my initial app-state if the query isn't on screen yet?
+;; how do I normalize my initial app-state when the Router made a new Component?
 
 (defmethod mutate 'load/it
   [{:keys [state component]} key {:keys [data]}]
