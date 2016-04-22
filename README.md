@@ -33,7 +33,8 @@ of the Graph and Om Next.
 
 ### Usage
 
-```[om-router "0.1.0-SNAPSHOT"]```
+[![Clojars Project](https://img.shields.io/clojars/v/om-router.svg)](https://clojars.org/om-router)
+
 
 ```clojure
 ;; 0. Don't forget to require the router...
