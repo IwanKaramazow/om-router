@@ -35,6 +35,7 @@ of the Graph and Om Next.
 
 [![Clojars Project](https://img.shields.io/clojars/v/om-router.svg)](https://clojars.org/om-router)
 
+```[om-router "0.1.0-SNAPSHOT"]```
 
 ```clojure
 ;; 0. Don't forget to require the router...
@@ -231,7 +232,7 @@ Example:
                    (om-router.core/link this
                                         {:className "class"
                                          :style {...}
-                                         :href "/some-path"}
+                                         :path "/some-path"}
                                          "this is a link"))))
 
 ;; how do I normalize my initial app-state when the Router mounted a new component?
